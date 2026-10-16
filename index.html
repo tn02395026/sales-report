@@ -33,7 +33,7 @@ dialog::backdrop{background:#0006}
 .cs{border-bottom:2px dashed var(--bd);padding:10px 2px}.cs .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.cs .amt{font-weight:700;white-space:nowrap}.cs .meta{margin:4px 0;font-size:12px;color:var(--sub)}.chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:1px 9px;margin:2px 4px 2px 0;font-size:12px}.acts{text-align:right;margin-top:4px}
 .kp2{display:flex;justify-content:space-between;align-items:center;gap:8px}.pc{text-align:right}.pc b{font-size:26px;color:#ff8a3d}
 .pg{margin-top:10px;border-top:2px dashed var(--bd);padding-top:4px}.pg summary{cursor:pointer;padding:6px 0;font-size:14px}
-.sl.deal th{background:#c87f2e;color:#fff;text-align:center}.sl.prob th{background:#1e6b3c;color:#fff;text-align:center}.sl td{white-space:normal;text-align:left;vertical-align:top}.sl .ft td{font-weight:700;text-align:right;background:var(--bg)}
+.sl.deal th{background:#c87f2e;color:#fff;text-align:center}.sl.prob th{background:#1e6b3c;color:#fff;text-align:center}.sl td{white-space:pre-line;text-align:left;vertical-align:top}.sl .ft td{font-weight:700;text-align:right;background:var(--bg)}
 .mini{padding:2px 10px;font-size:12px}.mood{font-size:30px}.sub{color:var(--sub);font-size:12px}
 svg text{fill:var(--sub);font-size:10px}
 </style></head><body>
@@ -97,12 +97,13 @@ const cl=()=>{const a=fc();return `<p class="sub">共 ${a.length} 件</p>`+list(
 function cases(){return `<div class="card"><div class="row"><button class="btn pri" onclick="edit()">＋ 新增</button><select onchange="filt=this.value;render()"><option value="all">全部狀態</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==filt?'selected':''}>${v}</option>`).join('')}</select></div><input placeholder="🔍 搜尋專案、合約、負責人" value="${E(q)}" oninput="q=this.value;$('#cl').innerHTML=cl()" style="width:100%;margin:6px 0"><div id="cl">${cl()}</div></div>`}
 /*DECK_START*/
 const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];let PM=new Date().getMonth()+1;
+const cn=t=>String(t||'').replace(/(\d{6}(?:-\d{2})?(?:~\d{2})?)[ \t]+(?=\S)/g,'$1\n').replace(/[、;；][ \t]*/g,'\n').trim();
 const svT=c=>c.svcText||c.lines.map(l=>l.svc).join(' '),mem=c=>own(c).join(' '),px=c=>fmt(tot(c))+(c.noCount?' (不計入業績)':''),sub=a=>a.filter(c=>!c.noCount).reduce((t,c)=>t+tot(c),0),cnt=a=>a.filter(c=>!c.noCount).length;
 function deckData(){const ms=`${MN[PM-1]} ${Y}`,D=['Contract No.','Project name','Project Member','Services','Price (Tax excluded)'],out=[];
  const cl=S.cases.filter(c=>c.status=='signed'&&(c.date||'').slice(0,4)==Y&&+(c.date||'').slice(5,7)==PM).sort((a,b)=>a.date.localeCompare(b.date)),g=getT(Y)[PM-1]||0,sc=sub(cl);
- out.push({kind:'deal',title:`Deal Closed- ${ms} (${cnt(cl)}件)`,head:D,cw:[3,3.2,1.4,3,1.7],rows:cl.map(c=>[c.contract||'',c.name,mem(c),svT(c),px(c)]),foot:[['SUBTOTAL',fmt(sc)],['GOAL',fmt(g)],['Difference',(sc-g>=0?'+':'-')+fmt(Math.abs(sc-g))]]});
+ out.push({kind:'deal',title:`Deal Closed- ${ms} (${cnt(cl)}件)`,head:D,cw:[3,3.2,1.4,3,1.7],rows:cl.map(c=>[cn(c.contract),c.name,mem(c),svT(c),px(c)]),foot:[['SUBTOTAL',fmt(sc)],['GOAL',fmt(g)],['Difference',(sc-g>=0?'+':'-')+fmt(Math.abs(sc-g))]]});
  const og=S.cases.filter(c=>c.status=='ongoing');
- if(og.length)out.push({kind:'deal',title:`Deal in progress (${cnt(og)}件)`,head:D,cw:[3,3.2,1.4,3,1.7],rows:og.map(c=>[c.contract||'TBC',c.name,mem(c),svT(c),px(c)]),foot:[['SUBTOTAL',fmt(sub(og))]]});
+ if(og.length)out.push({kind:'deal',title:`Deal in progress (${cnt(og)}件)`,head:D,cw:[3,3.2,1.4,3,1.7],rows:og.map(c=>[cn(c.contract)||'TBC',c.name,mem(c),svT(c),px(c)]),foot:[['SUBTOTAL',fmt(sub(og))]]});
  const pg={};S.cases.filter(c=>c.status=='prob').forEach(c=>(pg[+c.prob||0]=pg[+c.prob||0]||[]).push(c));
  Object.keys(pg).sort((a,b)=>b-a).forEach(p=>out.push({kind:'prob',title:`High probability in ${ms}- ${p}%↑`,head:['Project Name','Services','Price (Tax excluded)','Action Item'],cw:[3.6,3.4,1.7,3.6],rows:pg[p].map(c=>[c.name,svT(c),px(c),c.action||'']),foot:[['SUBTOTAL',fmt(sub(pg[p]))]]}));
  return out}
