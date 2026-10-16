@@ -12,7 +12,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 header{padding:14px 16px 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 h1{margin:0;font-size:20px}h2{font-size:16px;margin:0 0 8px}
 nav{display:flex;gap:6px;padding:6px 16px;flex-wrap:wrap}
-nav button,.btn{border:2px solid var(--bd);background:var(--card);color:var(--tx);border-radius:999px;padding:6px 14px;font-size:14px;cursor:pointer}
+nav button,.btn{white-space:nowrap;border:2px solid var(--bd);background:var(--card);color:var(--tx);border-radius:999px;padding:6px 14px;font-size:14px;cursor:pointer}
 nav button.on,.btn.pri{background:var(--pk);border-color:var(--pk);color:#4a2430;font-weight:600}
 main{padding:8px 16px 40px;max-width:1000px;margin:auto}
 .card{background:var(--card);border:2px solid var(--bd);border-radius:20px;padding:14px;margin-bottom:14px}
@@ -29,6 +29,8 @@ dialog::backdrop{background:#0006}
 .row{display:flex;gap:6px;align-items:center;margin-bottom:6px}.row>*{flex:1}.row>button{flex:0}
 .tag{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;background:var(--bd)}
 .ck{display:inline-flex;align-items:center;gap:4px;margin:4px 10px 4px 0;font-size:14px;color:var(--tx)}.ck input{width:auto;padding:0}
+.cs{border-bottom:2px dashed var(--bd);padding:10px 2px}.cs .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.cs .amt{font-weight:700;white-space:nowrap}.cs .meta{margin:4px 0;font-size:12px;color:var(--sub)}.chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:1px 9px;margin:2px 4px 2px 0;font-size:12px}.acts{text-align:right;margin-top:4px}
+.kp2{display:flex;justify-content:space-between;align-items:center;gap:8px}.pc{text-align:right}.pc b{font-size:26px;color:#ff8a3d}
 .mini{padding:2px 10px;font-size:12px}.mood{font-size:30px}.sub{color:var(--sub);font-size:12px}
 svg text{fill:var(--sub);font-size:10px}
 </style></head><body>
@@ -40,12 +42,18 @@ const $=s=>document.querySelector(s),ST={signed:'已簽約',ongoing:'進行中',
 let S={cases:[],targets:{},services:['LEED','WELL','EEWH','BERS','IB'],owners:[]},Y=new Date().getFullYear(),tab='report',ref=null,CM=new Date().getMonth()+1,filt='all',tmr;
 const fmt=n=>Math.round(n).toLocaleString('en-US'),wan=n=>(n/1e4).toFixed(0)+'萬',E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const tot=c=>c.lines.reduce((a,l)=>a+(+l.amt||0),0),uid=()=>Math.random().toString(36).slice(2,9);
+const pct=(a,t)=>t?(a/t*100).toFixed(1)+'%':'—';
 const own=c=>c.owners||(c.owner?[c.owner]:[]);
 const getT=y=>S.targets[y]||(S.targets[y]=Array(12).fill(0));
 const cls=n=>n>=0?'pos':'neg',sg=n=>(n>=0?'+':'−')+fmt(Math.abs(n));
 function save(){try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}clearTimeout(tmr);tmr=setTimeout(()=>{window.cloudSave&&window.cloudSave(S)},800)}
+function fixData(){const key=n=>n.trim().toLowerCase(),canon={};S.services.forEach(n=>{if(!SEP.test(n))canon[key(n)]=canon[key(n)]||n.trim()});
+ const nm=n=>{n=n.trim();return canon[key(n)]||(canon[key(n)]=n)};
+ S.cases.forEach(c=>{const m={};c.lines.forEach(l=>{const ps=String(l.svc).split(SEP).map(z=>z.trim()).filter(Boolean);ps.forEach(p=>{const k=nm(p);m[k]=(m[k]||0)+(+l.amt||0)/ps.length})});c.lines=Object.entries(m).map(([svc,amt])=>({svc,amt}))});
+ S.services=[...new Set(S.services.flatMap(n=>String(n).split(SEP)).map(z=>z.trim()).filter(Boolean).map(nm))]}
+function cleanSave(){const b=JSON.stringify(S);fixData();if(JSON.stringify(S)!==b)save()}
 function getS(){return S}
-function loadRemote(d){S=Object.assign(S,d);try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}render()}
+function loadRemote(d){S=Object.assign(S,d);cleanSave();try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}render()}
 function stats(){const T=getT(Y),m=Array(12).fill(0),sv={},ong=[],pr={};
  const a=(n,k,v)=>{(sv[n]=sv[n]||{signed:0,ongoing:0,w:0})[k]+=v};
  S.cases.forEach(c=>{if(c.noCount)return;const t=tot(c);
@@ -54,19 +62,19 @@ function stats(){const T=getT(Y),m=Array(12).fill(0),sv={},ong=[],pr={};
    if(c.status=='ongoing'){ong.push(c);c.lines.forEach(l=>a(l.svc,'ongoing',+l.amt||0))}
    else{const p=+c.prob||0,g=pr[p]=pr[p]||{n:0,amt:0,w:0};g.n++;g.amt+=t;g.w+=t*p/100;c.lines.forEach(l=>a(l.svc,'w',(+l.amt||0)*p/100))}}});
  return{T,m,sv,ong,pr}}
-function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=12,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
+function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=22,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
  for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4;s+=`<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--bd)"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${Math.round(v/1e4)}萬</text>`}
  for(let i=0;i<n;i++)s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${i+1}月</text>`;
- bars.forEach((v,i)=>s+=`<rect x="${x(i)-10}" y="${y(Math.max(v,0))}" width="20" height="${Math.abs(y(0)-y(v))}" rx="6" fill="var(--pk)"/>`);
+ bars.forEach((v,i)=>s+=`<rect x="${x(i)-10}" y="${y(Math.max(v,0))}" width="20" height="${Math.abs(y(0)-y(v))}" rx="6" fill="var(--pk)"/>`+(v?`<text x="${x(i)}" y="${y(Math.max(v,0))-4}" text-anchor="middle" style="fill:var(--tx);font-size:10px;font-weight:600">${Math.round(v/1e4)}</text>`:''));
  lines.forEach((l,j)=>{s+=`<polyline fill="none" stroke="${cols[j]}" stroke-width="3" stroke-linejoin="round" points="${l.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`+l.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${cols[j]}"/>`).join('')});
  return s+'</svg>'}
 function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.reduce((a,b)=>a+b,0),cum=[],cumT=[];m.reduce((a,v,i)=>(cum[i]=a+v),0);T.reduce((a,v,i)=>(cumT[i]=a+v),0);
  const cmT=CM?cumT[CM-1]:0,cmA=CM?cum[CM-1]:0,gap=cmA-cmT,ongT=ong.reduce((a,c)=>a+tot(c),0),wT=Object.values(pr).reduce((a,g)=>a+g.w,0),fc=sg_+ongT+wT;
  const cmSel=`<select onchange="CM=+this.value;render()">${Array.from({length:13},(_,i)=>`<option value="${i}" ${i==CM?'selected':''}>${i?i+' 月底':'未開始'}</option>`).join('')}</select>`;
  let h=`<div class="card"><div class="row"><span class="mood">${gap>=0?'😸':'🙀'}</span><div>統計到 ${cmSel}<br><b class="${cls(gap)}">${gap>=0?'超前':'落後'} ${fmt(Math.abs(gap))} 元</b></div></div>
- <div class="grid"><div class="kpi"><small>累計目標</small><b>${fmt(cmT)}</b></div><div class="kpi"><small>累計實際（已簽約）</small><b>${fmt(cmA)}</b></div><div class="kpi"><small>全年目標</small><b>${fmt(cT)}</b></div><div class="kpi"><small>全年已簽約 / 差距</small><b>${fmt(sg_)}</b><small class="${cls(sg_-cT)}">${sg(sg_-cT)}</small></div></div></div>
- <div class="card"><h2>🐾 每月實際（柱）vs 目標（線）</h2>${chart(m,[T],['#ff8a3d'])}</div>
+ <div class="grid"><div class="kpi"><small>累計目標</small><b>${fmt(cmT)}</b></div><div class="kpi"><small>累計實際（已簽約）</small><b>${fmt(cmA)}</b><small>累計達成率 ${pct(cmA,cmT)}</small></div><div class="kpi"><small>全年目標</small><b>${fmt(cT)}</b></div><div class="kpi kp2"><div><small>全年已簽約 / 差距</small><b>${fmt(sg_)}</b><small class="${cls(sg_-cT)}">${sg(sg_-cT)}</small></div><div class="pc"><small>年達成率</small><b>${pct(sg_,cT)}</b></div></div></div></div>
+ <div class="card"><h2>🐾 每月實際（柱）vs 目標（線）單位：萬</h2>${chart(m,[T],['#ff8a3d'])}</div>
  <div class="card"><h2>每月明細</h2><div class="wrap"><table><tr><th>月</th><th>目標</th><th>實際</th><th>月差距</th><th>累計目標</th><th>累計實際</th><th>累計差距</th></tr>`;
  m.forEach((v,i)=>h+=`<tr><td>${i+1}月</td><td>${fmt(T[i])}</td><td>${fmt(v)}</td><td class="${cls(v-T[i])}">${sg(v-T[i])}</td><td>${fmt(cumT[i])}</td><td>${fmt(cum[i])}</td><td class="${cls(cum[i]-cumT[i])}">${sg(cum[i]-cumT[i])}</td></tr>`);
  h+=`</table></div></div><div class="card"><h2>各服務項目（元）</h2><div class="wrap"><table><tr><th>服務</th><th>已簽約</th><th>進行中</th><th>機率加權</th></tr>`;
@@ -75,9 +83,11 @@ function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.r
  <div class="card"><h2>🎯 機率案件</h2><div class="wrap"><table><tr><th>機率</th><th>件數</th><th>金額</th><th>加權金額</th></tr>`;
  Object.keys(pr).sort((a,b)=>b-a).forEach(p=>h+=`<tr><td>${p}%</td><td>${pr[p].n}</td><td>${fmt(pr[p].amt)}</td><td>${fmt(pr[p].w)}</td></tr>`);
  h+=`</table></div></div><div class="card"><h2>🔮 預估</h2><p>已簽約 ${fmt(sg_)} + 進行中 ${fmt(ongT)} + 機率加權 ${fmt(wT)} = <b>${fmt(fc)}</b><br>對全年目標 <b class="${cls(fc-cT)}">${sg(fc-cT)}</b> 元</p></div>`;return h}
-function list(a){return a.length?`<div class="wrap"><table><tr><th>專案</th><th>負責人</th><th>合約</th><th>服務</th><th>狀態</th><th>日期／預計月</th><th>金額</th><th></th></tr>${a.map(c=>`<tr><td>${E(c.name)}</td><td>${E(own(c).join('、'))}</td><td>${E(c.contract)}</td><td class="l">${c.lines.map(l=>E(l.svc)+' '+fmt(l.amt)).join('<br>')}</td><td><span class="tag">${ST[c.status]}${c.status=='prob'?' '+(c.prob||0)+'%':''}</span>${c.noCount?' <span class="tag">不計業績</span>':''}</td><td>${c.status=='signed'?E(c.date):E(c.exp)}</td><td>${fmt(tot(c))}</td><td><button class="btn mini" onclick="edit('${c.id}')">改</button> <button class="btn mini" onclick="del('${c.id}')">刪</button></td></tr>`).join('')}</table></div>`:'<p class="sub">還沒有資料 🐾</p>'}
-function cases(){const a=S.cases.filter(c=>filt=='all'||c.status==filt).sort((x,y)=>(y.date||y.exp||'').localeCompare(x.date||x.exp||''));
- return `<div class="card"><div class="row"><button class="btn pri" onclick="edit()">＋ 新增案件</button><select onchange="filt=this.value;render()"><option value="all">全部狀態</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==filt?'selected':''}>${v}</option>`).join('')}</select></div>${list(a)}</div>`}
+function list(a){return a.length?a.map(c=>`<div class="cs"><div class="top"><b>${E(c.name)}</b><span class="amt">${fmt(tot(c))}</span></div><div class="meta"><span class="tag">${ST[c.status]}${c.status=='prob'?' '+(c.prob||0)+'%':''}</span>${c.noCount?' <span class="tag">不計業績</span>':''} ${c.status=='signed'?'簽約 '+E(c.date):(c.exp?'預計 '+E(c.exp):'')}</div><div>${c.lines.map(l=>`<span class="chip">${E(l.svc)} ${fmt(l.amt)}</span>`).join('')}</div><div class="sub">${own(c).length?'👤 '+E(own(c).join('、')):''}${c.contract?' ・ 📄 '+E(c.contract):''}</div><div class="acts"><button class="btn mini" onclick="edit('${c.id}')">編輯</button> <button class="btn mini" onclick="del('${c.id}')">刪除</button></div></div>`).join(''):'<p class="sub">還沒有資料 🐾</p>'}
+let q='';
+const fc=()=>S.cases.filter(c=>(filt=='all'||c.status==filt)&&(!q||(c.name+(c.contract||'')+own(c).join('')).toLowerCase().includes(q.toLowerCase()))).sort((x,y)=>(y.date||y.exp||'').localeCompare(x.date||x.exp||''));
+const cl=()=>{const a=fc();return `<p class="sub">共 ${a.length} 件</p>`+list(a)};
+function cases(){return `<div class="card"><div class="row"><button class="btn pri" onclick="edit()">＋ 新增</button><select onchange="filt=this.value;render()"><option value="all">全部狀態</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==filt?'selected':''}>${v}</option>`).join('')}</select></div><input placeholder="🔍 搜尋專案、合約、負責人" value="${E(q)}" oninput="q=this.value;$('#cl').innerHTML=cl()" style="width:100%;margin:6px 0"><div id="cl">${cl()}</div></div>`}
 function settings(){const T=getT(Y);
  return `<div class="card"><h2>${Y} 年每月目標（元）</h2><div class="row"><input id="allT" type="number" placeholder="全年同額"><button class="btn" onclick="fillT()">套用</button></div><div class="grid">${T.map((v,i)=>`<div><label>${i+1}月</label><input type="number" value="${v}" onchange="getT(Y)[${i}]=+this.value||0;save()"></div>`).join('')}</div></div>
  ${['services','owners'].map(k=>`<div class="card"><h2>${k=='services'?'服務項目':'負責人名單'}</h2>${S[k].map((n,i)=>`<span class="tag">${E(n)} <a href="#" onclick="rm('${k}',${i});return false">✕</a></span> `).join('')}<div class="row" style="margin-top:8px"><input id="n_${k}" placeholder="新增…"><button class="btn" onclick="addI('${k}')">加</button></div></div>`).join('')}
@@ -120,7 +130,7 @@ function render(){const ys=new Set([Y,new Date().getFullYear(),new Date().getFul
  $('#yr').innerHTML=[...ys].sort().map(y=>`<option value="${y}" ${y==Y?'selected':''}>${y} 年</option>`).join('');
  $('#nav').innerHTML=[['report','📊 報表'],['cases','📋 案件'],['settings','⚙️ 設定']].map(([k,v])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';render()">${v}</button>`).join('');
  $('#main').innerHTML=({report,cases,settings})[tab]()}
-(()=>{try{const l=JSON.parse(localStorage.getItem('sr'));if(l)S=Object.assign(S,l)}catch(e){}render()})();
+(()=>{try{const l=JSON.parse(localStorage.getItem('sr'));if(l)S=Object.assign(S,l)}catch(e){}cleanSave();render()})();
 </script><script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
