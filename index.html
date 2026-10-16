@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>貓貓業績報表</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;--bg:#fff7ee;--card:#fff;--tx:#4a3b32;--sub:#9a8678;--pk:#ff9eb5;--or:#ffb26b;--gr:#6cc9a0;--rd:#f0757f;--bd:#f3dfcf}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#2a2320;--card:#362d29;--tx:#f5e9df;--sub:#bba999;--bd:#4d413b}}
+:root[data-theme=dark]{color-scheme:dark;--bg:#2a2320;--card:#362d29;--tx:#f5e9df;--sub:#bba999;--bd:#4d413b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif}
+header{padding:14px 16px 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}h2{font-size:16px;margin:0 0 8px}
+nav{display:flex;gap:6px;padding:6px 16px;flex-wrap:wrap}
+nav button,.btn{border:2px solid var(--bd);background:var(--card);color:var(--tx);border-radius:999px;padding:6px 14px;font-size:14px;cursor:pointer}
+nav button.on,.btn.pri{background:var(--pk);border-color:var(--pk);color:#4a2430;font-weight:600}
+main{padding:8px 16px 40px;max-width:1000px;margin:auto}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:20px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--card);border:2px solid var(--bd);border-radius:18px;padding:10px 12px}
+.kpi b{display:block;font-size:18px}.kpi small{color:var(--sub)}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:6px 8px;border-bottom:1px dashed var(--bd);text-align:right;white-space:nowrap}th:first-child,td:first-child,.l{text-align:left}
+th{color:var(--sub);font-weight:600}.pos{color:var(--gr)}.neg{color:var(--rd)}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:2px solid var(--bd);border-radius:12px;padding:6px 10px;max-width:100%}
+label{display:block;font-size:13px;color:var(--sub);margin:8px 0 2px}
+dialog{border:3px solid var(--pk);border-radius:22px;background:var(--card);color:var(--tx);width:min(94vw,520px);max-height:90vh}
+dialog::backdrop{background:#0006}
+.row{display:flex;gap:6px;align-items:center;margin-bottom:6px}.row>*{flex:1}.row>button{flex:0}
+.tag{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;background:var(--bd)}
+.mini{padding:2px 10px;font-size:12px}.mood{font-size:30px}.sub{color:var(--sub);font-size:12px}
+svg text{fill:var(--sub);font-size:10px}
+</style></head><body>
+<header><span class="mood">🐱</span><h1>貓貓業績報表</h1><select id="yr" onchange="Y=+this.value;render()"></select><span class="sub" id="sync"></span><button class="btn mini" id="auth" style="margin-left:auto">登入 Google</button></header>
+<nav id="nav"></nav><main id="main"></main>
+<dialog id="dlg"></dialog>
+<script>
+const $=s=>document.querySelector(s),ST={signed:'已簽約',ongoing:'進行中',prob:'機率案件'};
+let S={cases:[],targets:{},services:['LEED','WELL','EEWH','BERS','IB'],owners:[]},Y=new Date().getFullYear(),tab='report',ref=null,CM=new Date().getMonth()+1,filt='all',tmr;
+const fmt=n=>Math.round(n).toLocaleString('en-US'),wan=n=>(n/1e4).toFixed(0)+'萬',E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const tot=c=>c.lines.reduce((a,l)=>a+(+l.amt||0),0),uid=()=>Math.random().toString(36).slice(2,9);
+const getT=y=>S.targets[y]||(S.targets[y]=Array(12).fill(0));
+const cls=n=>n>=0?'pos':'neg',sg=n=>(n>=0?'+':'−')+fmt(Math.abs(n));
+function save(){try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}clearTimeout(tmr);tmr=setTimeout(()=>{window.cloudSave&&window.cloudSave(S)},800)}
+function getS(){return S}
+function loadRemote(d){S=Object.assign(S,d);try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}render()}
+function stats(){const T=getT(Y),m=Array(12).fill(0),sv={},ong=[],pr={};
+ const a=(n,k,v)=>{(sv[n]=sv[n]||{signed:0,ongoing:0,w:0})[k]+=v};
+ S.cases.forEach(c=>{const t=tot(c);
+  if(c.status=='signed'){if(c.date&&+c.date.slice(0,4)==Y){m[+c.date.slice(5,7)-1]+=t;c.lines.forEach(l=>a(l.svc,'signed',+l.amt||0))}}
+  else if(!c.exp||+c.exp.slice(0,4)==Y){
+   if(c.status=='ongoing'){ong.push(c);c.lines.forEach(l=>a(l.svc,'ongoing',+l.amt||0))}
+   else{const p=+c.prob||0,g=pr[p]=pr[p]||{n:0,amt:0,w:0};g.n++;g.amt+=t;g.w+=t*p/100;c.lines.forEach(l=>a(l.svc,'w',(+l.amt||0)*p/100))}}});
+ return{T,m,sv,ong,pr}}
+function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=12,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
+ let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
+ for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4;s+=`<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--bd)"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${Math.round(v/1e4)}萬</text>`}
+ for(let i=0;i<n;i++)s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${i+1}月</text>`;
+ bars.forEach((v,i)=>s+=`<rect x="${x(i)-10}" y="${y(Math.max(v,0))}" width="20" height="${Math.abs(y(0)-y(v))}" rx="6" fill="var(--pk)"/>`);
+ lines.forEach((l,j)=>{s+=`<polyline fill="none" stroke="${cols[j]}" stroke-width="3" stroke-linejoin="round" points="${l.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`+l.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${cols[j]}"/>`).join('')});
+ return s+'</svg>'}
+function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.reduce((a,b)=>a+b,0),cum=[],cumT=[];m.reduce((a,v,i)=>(cum[i]=a+v),0);T.reduce((a,v,i)=>(cumT[i]=a+v),0);
+ const cmT=CM?cumT[CM-1]:0,cmA=CM?cum[CM-1]:0,gap=cmA-cmT,ongT=ong.reduce((a,c)=>a+tot(c),0),wT=Object.values(pr).reduce((a,g)=>a+g.w,0),fc=sg_+ongT+wT;
+ const cmSel=`<select onchange="CM=+this.value;render()">${Array.from({length:13},(_,i)=>`<option value="${i}" ${i==CM?'selected':''}>${i?i+' 月底':'未開始'}</option>`).join('')}</select>`;
+ let h=`<div class="card"><div class="row"><span class="mood">${gap>=0?'😸':'🙀'}</span><div>統計到 ${cmSel}<br><b class="${cls(gap)}">${gap>=0?'超前':'落後'} ${fmt(Math.abs(gap))} 元</b></div></div>
+ <div class="grid"><div class="kpi"><small>累計目標</small><b>${fmt(cmT)}</b></div><div class="kpi"><small>累計實際（已簽約）</small><b>${fmt(cmA)}</b></div><div class="kpi"><small>全年目標</small><b>${fmt(cT)}</b></div><div class="kpi"><small>全年已簽約 / 差距</small><b>${fmt(sg_)}</b><small class="${cls(sg_-cT)}">${sg(sg_-cT)}</small></div></div></div>
+ <div class="card"><h2>🐾 每月實際（柱）vs 目標（線）</h2>${chart(m,[T],['#ff8a3d'])}</div>
+ <div class="card"><h2>🐾 累計實際（綠）vs 累計目標（橘）</h2>${chart(m.map(()=>0),[cumT,cum],['#ff8a3d','#38b27f'])}</div>
+ <div class="card"><h2>每月明細</h2><div class="wrap"><table><tr><th>月</th><th>目標</th><th>實際</th><th>月差距</th><th>累計目標</th><th>累計實際</th><th>累計差距</th></tr>`;
+ m.forEach((v,i)=>h+=`<tr><td>${i+1}月</td><td>${fmt(T[i])}</td><td>${fmt(v)}</td><td class="${cls(v-T[i])}">${sg(v-T[i])}</td><td>${fmt(cumT[i])}</td><td>${fmt(cum[i])}</td><td class="${cls(cum[i]-cumT[i])}">${sg(cum[i]-cumT[i])}</td></tr>`);
+ h+=`</table></div></div><div class="card"><h2>各服務項目（元）</h2><div class="wrap"><table><tr><th>服務</th><th>已簽約</th><th>進行中</th><th>機率加權</th></tr>`;
+ const names=[...new Set([...S.services,...Object.keys(sv)])];names.forEach(n=>{const o=sv[n]||{signed:0,ongoing:0,w:0};h+=`<tr><td>${E(n)}</td><td>${fmt(o.signed)}</td><td>${fmt(o.ongoing)}</td><td>${fmt(o.w)}</td></tr>`});
+ h+=`</table></div></div><div class="card"><h2>⏳ 進行中（已確定，跑合約／行政流程）</h2><p class="sub">${ong.length} 件，共 ${fmt(ongT)} 元</p>${list(ong)}</div>
+ <div class="card"><h2>🎯 機率案件</h2><div class="wrap"><table><tr><th>機率</th><th>件數</th><th>金額</th><th>加權金額</th></tr>`;
+ Object.keys(pr).sort((a,b)=>b-a).forEach(p=>h+=`<tr><td>${p}%</td><td>${pr[p].n}</td><td>${fmt(pr[p].amt)}</td><td>${fmt(pr[p].w)}</td></tr>`);
+ h+=`</table></div></div><div class="card"><h2>🔮 預估</h2><p>已簽約 ${fmt(sg_)} + 進行中 ${fmt(ongT)} + 機率加權 ${fmt(wT)} = <b>${fmt(fc)}</b><br>對全年目標 <b class="${cls(fc-cT)}">${sg(fc-cT)}</b> 元</p></div>`;return h}
+function list(a){return a.length?`<div class="wrap"><table><tr><th>專案</th><th>負責人</th><th>合約</th><th>服務</th><th>狀態</th><th>日期／預計月</th><th>金額</th><th></th></tr>${a.map(c=>`<tr><td>${E(c.name)}</td><td>${E(c.owner)}</td><td>${E(c.contract)}</td><td class="l">${c.lines.map(l=>E(l.svc)+' '+fmt(l.amt)).join('<br>')}</td><td><span class="tag">${ST[c.status]}${c.status=='prob'?' '+(c.prob||0)+'%':''}</span></td><td>${c.status=='signed'?E(c.date):E(c.exp)}</td><td>${fmt(tot(c))}</td><td><button class="btn mini" onclick="edit('${c.id}')">改</button> <button class="btn mini" onclick="del('${c.id}')">刪</button></td></tr>`).join('')}</table></div>`:'<p class="sub">還沒有資料 🐾</p>'}
+function cases(){const a=S.cases.filter(c=>filt=='all'||c.status==filt).sort((x,y)=>(y.date||y.exp||'').localeCompare(x.date||x.exp||''));
+ return `<div class="card"><div class="row"><button class="btn pri" onclick="edit()">＋ 新增案件</button><select onchange="filt=this.value;render()"><option value="all">全部狀態</option>${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==filt?'selected':''}>${v}</option>`).join('')}</select></div>${list(a)}</div>`}
+function settings(){const T=getT(Y);
+ return `<div class="card"><h2>${Y} 年每月目標（元）</h2><div class="row"><input id="allT" type="number" placeholder="全年同額"><button class="btn" onclick="fillT()">套用</button></div><div class="grid">${T.map((v,i)=>`<div><label>${i+1}月</label><input type="number" value="${v}" onchange="getT(Y)[${i}]=+this.value||0;save()"></div>`).join('')}</div></div>
+ ${['services','owners'].map(k=>`<div class="card"><h2>${k=='services'?'服務項目':'負責人名單'}</h2>${S[k].map((n,i)=>`<span class="tag">${E(n)} <a href="#" onclick="rm('${k}',${i});return false">✕</a></span> `).join('')}<div class="row" style="margin-top:8px"><input id="n_${k}" placeholder="新增…"><button class="btn" onclick="addI('${k}')">加</button></div></div>`).join('')}
+ <div class="card"><h2>Excel</h2><div class="row"><button class="btn" onclick="tpl()">下載範本</button><button class="btn" onclick="exp()">匯出全部</button><button class="btn pri" onclick="$('#fi').click()">匯入</button></div><input id="fi" type="file" accept=".xlsx,.xls,.csv" hidden onchange="imp(this.files[0]);this.value=''"><p class="sub">匯入一律新增，遇到重複合約編號會提醒，請自行檢查刪除。</p></div>`}
+function fillT(){const v=+$('#allT').value||0;S.targets[Y]=Array(12).fill(v);save();render()}
+function addI(k){const v=$('#n_'+k).value.trim();if(v&&!S[k].includes(v)){S[k].push(v);save();render()}}
+function rm(k,i){S[k].splice(i,1);save();render()}
+function del(id){if(confirm('確定刪除這個案件？')){S.cases=S.cases.filter(c=>c.id!=id);save();render()}}
+function opts(a,v){return a.map(x=>`<option ${x==v?'selected':''}>${E(x)}</option>`).join('')}
+function lineRow(l){return `<div class="row"><select class="ls">${opts(S.services,l.svc)}</select><input class="la" type="number" placeholder="金額(元)" value="${l.amt||''}"><button class="btn mini" type="button" onclick="this.parentNode.remove()">✕</button></div>`}
+function edit(id){const c=S.cases.find(x=>x.id==id)||{id:uid(),status:'prob',lines:[{svc:S.services[0],amt:''}],prob:90,_new:1};
+ $('#dlg').innerHTML=`<h2>${c._new?'新增':'編輯'}案件 🐱</h2><label>專案名稱</label><input id="f_name" value="${E(c.name)}" style="width:100%"><label>負責人</label><select id="f_owner"><option value="">（未指定）</option>${opts(S.owners,c.owner)}</select><label>合約編號</label><input id="f_con" value="${E(c.contract)}"><label>狀態</label><select id="f_st" onchange="stv()">${Object.entries(ST).map(([k,v])=>`<option value="${k}" ${k==c.status?'selected':''}>${v}</option>`).join('')}</select>
+ <div id="g_date"><label>簽約日（業績月份依此計算）</label><input id="f_date" type="date" value="${c.date||''}"></div><div id="g_exp"><label>預計簽約月份</label><input id="f_exp" type="month" value="${c.exp||''}"></div><div id="g_p"><label>成功機率 %</label><input id="f_p" type="number" min="0" max="100" value="${c.prob??90}"></div>
+ <label>服務項目與金額（元，未稅）</label><div id="lines">${c.lines.map(lineRow).join('')}</div><button class="btn mini" type="button" onclick="$('#lines').insertAdjacentHTML('beforeend',lineRow({svc:S.services[0]}))">＋ 服務</button>
+ <div class="row" style="margin-top:14px"><button class="btn" onclick="$('#dlg').close()">取消</button><button class="btn pri" onclick="saveC('${c.id}',${!!c._new})">儲存</button></div>`;stv();$('#dlg').showModal()}
+function stv(){const s=$('#f_st').value;$('#g_date').hidden=s!='signed';$('#g_exp').hidden=s=='signed';$('#g_p').hidden=s!='prob'}
+function saveC(id,isNew){const s=$('#f_st').value,lines=[...document.querySelectorAll('#lines .row')].map(r=>({svc:r.querySelector('.ls').value,amt:+r.querySelector('.la').value||0})),name=$('#f_name').value.trim();
+ if(!name)return alert('請填專案名稱');if(s=='signed'&&!$('#f_date').value)return alert('已簽約需要填簽約日');
+ const c={id,name,owner:$('#f_owner').value,contract:$('#f_con').value.trim(),status:s,date:s=='signed'?$('#f_date').value:'',exp:s!='signed'?$('#f_exp').value:'',prob:s=='prob'?+$('#f_p').value||0:100,lines};
+ if(isNew)S.cases.push(c);else S.cases[S.cases.findIndex(x=>x.id==id)]=c;save();$('#dlg').close();render()}
+function dl(name,wb){try{XLSX.writeFile(wb,name)}catch(e){alert('下載失敗：'+e.message)}}
+const HD=['專案名稱','負責人','合約編號','服務項目','狀態','簽約日','預計簽約月','機率(%)','金額(元)'];
+function tpl(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([HD,['範例A案','小明','C-001','LEED','已簽約','2026-03-15','','',4000000],['範例A案','小明','C-001','WELL','已簽約','2026-03-15','','',1000000],['範例B案','小美','','BERS','進行中','','2026-11','',800000],['範例C案','小明','','EEWH','機率案件','','2026-12',90,600000]]),'案件');
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['一個服務項目一列；同一案件（專案名稱＋合約編號相同）會自動合併。'],['狀態只能填：已簽約／進行中／機率案件'],['已簽約填「簽約日」；進行中、機率案件填「預計簽約月」(例 2026-11)；機率案件另填機率'],['金額為未稅、元，請只填數字']]),'說明');dl('業績匯入範本.xlsx',wb)}
+function exp(){const r=[HD];S.cases.forEach(c=>c.lines.forEach(l=>r.push([c.name,c.owner,c.contract,l.svc,ST[c.status],c.date,c.exp,c.status=='prob'?c.prob:'',l.amt])));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(r),'案件');dl('業績資料匯出.xlsx',wb)}
+const nd=v=>{if(v instanceof Date)return new Date(v.getTime()+432e5-v.getTimezoneOffset()*6e4).toISOString().slice(0,10);const m=String(v||'').match(/(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);return m?`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`:''},nm=v=>{const d=nd(v);if(d)return d.slice(0,7);const m=String(v||'').match(/(\d{4})[\/\-.](\d{1,2})/);return m?`${m[1]}-${m[2].padStart(2,'0')}`:''};
+function imp(f){if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=XLSX.read(e.target.result,{cellDates:true}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}),map={},err=[],dup=new Set(),sk={};
+ Object.entries(ST).forEach(([k,v])=>sk[v]=k);
+ rows.forEach((x,i)=>{const n=i+2,name=String(x['專案名稱']).trim();if(!name)return;const st=sk[String(x['狀態']).trim()],amt=+String(x['金額(元)']).replace(/,/g,''),svc=String(x['服務項目']).trim(),con=String(x['合約編號']).trim();
+  if(!st)return err.push(`第${n}列：狀態「${x['狀態']}」不認得`);if(isNaN(amt)||!svc)return err.push(`第${n}列：服務項目或金額有問題`);
+  const date=nd(x['簽約日']);if(st=='signed'&&!date)return err.push(`第${n}列：已簽約需要正確的簽約日`);
+  const k=[name,con,st].join('|');const c=map[k]=map[k]||{id:uid(),name,owner:String(x['負責人']).trim(),contract:con,status:st,date:st=='signed'?date:'',exp:st!='signed'?nm(x['預計簽約月']):'',prob:st=='prob'?+x['機率(%)']||0:100,lines:[]};
+  c.lines.push({svc,amt});if(!S.services.includes(svc))S.services.push(svc);if(c.owner&&!S.owners.includes(c.owner))S.owners.push(c.owner);if(con&&S.cases.some(z=>z.contract==con))dup.add(con)});
+ const a=Object.values(map);S.cases.push(...a);save();render();alert(`匯入 ${a.length} 件案件。`+(dup.size?`\n⚠️ 合約編號已存在：${[...dup].join('、')}（已新增，請自行檢查）`:'')+(err.length?`\n\n未匯入：\n`+err.slice(0,10).join('\n'):''))}catch(x){alert('讀取失敗：'+x.message)}};r.readAsArrayBuffer(f)}
+function render(){const ys=new Set([Y,new Date().getFullYear(),new Date().getFullYear()+1,...Object.keys(S.targets).map(Number),...S.cases.map(c=>+(c.date||c.exp||'0').slice(0,4)).filter(Boolean)]);
+ $('#yr').innerHTML=[...ys].sort().map(y=>`<option value="${y}" ${y==Y?'selected':''}>${y} 年</option>`).join('');
+ $('#nav').innerHTML=[['report','📊 報表'],['cases','📋 案件'],['settings','⚙️ 設定']].map(([k,v])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';render()">${v}</button>`).join('');
+ $('#main').innerHTML=({report,cases,settings})[tab]()}
+(()=>{try{const l=JSON.parse(localStorage.getItem('sr'));if(l)S=Object.assign(S,l)}catch(e){}render()})();
+</script><script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,signOut,onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {getFirestore,doc,getDoc,setDoc} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+// ▼▼▼ 把 Firebase 給你的設定貼在這裡（SOP 第 4 步）▼▼▼
+const firebaseConfig={
+  apiKey:"AIzaSyA43Lw5Ny0CoI1459vX9-9ZDhKPX88NXhI",
+  authDomain:"sales-report-e21cf.firebaseapp.com",
+  projectId:"sales-report-e21cf",
+  storageBucket:"sales-report-e21cf.firebasestorage.app",
+  messagingSenderId:"980918925315",
+  appId:"1:980918925315:web:15611fbd4cd73b0b417636"
+};
+// ▲▲▲
+const $=s=>document.querySelector(s);
+if(firebaseConfig.apiKey.startsWith("YOUR")){$('#sync').textContent='僅存本機（尚未設定 Firebase）';$('#auth').hidden=true}
+else{
+ const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);let uid=null;
+ $('#auth').onclick=()=>uid?signOut(auth):signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>alert('登入失敗：'+e.message));
+ window.cloudSave=async d=>{if(!uid)return;try{await setDoc(doc(db,'users',uid),{json:JSON.stringify(d),t:Date.now()});$('#sync').textContent='☁️ 已同步'}catch(e){$('#sync').textContent='⚠️ 同步失敗';console.error(e)}};
+ onAuthStateChanged(auth,async u=>{uid=u?u.uid:null;$('#auth').textContent=u?'登出':'登入 Google';
+  if(!u){$('#sync').textContent='未登入（僅存本機）';return}
+  try{const s=await getDoc(doc(db,'users',uid));if(s.exists())loadRemote(JSON.parse(s.data().json));else await window.cloudSave(getS());$('#sync').textContent='☁️ 已同步'}
+  catch(e){$('#sync').textContent='⚠️ 同步失敗';console.error(e)}});
+}
+</script>
+</body></html>
