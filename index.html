@@ -31,6 +31,7 @@ dialog::backdrop{background:#0006}
 .ck{display:inline-flex;align-items:center;gap:4px;margin:4px 10px 4px 0;font-size:14px;color:var(--tx)}.ck input{width:auto;padding:0}
 .cs{border-bottom:2px dashed var(--bd);padding:10px 2px}.cs .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.cs .amt{font-weight:700;white-space:nowrap}.cs .meta{margin:4px 0;font-size:12px;color:var(--sub)}.chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:1px 9px;margin:2px 4px 2px 0;font-size:12px}.acts{text-align:right;margin-top:4px}
 .kp2{display:flex;justify-content:space-between;align-items:center;gap:8px}.pc{text-align:right}.pc b{font-size:26px;color:#ff8a3d}
+.pg{margin-top:10px;border-top:2px dashed var(--bd);padding-top:4px}.pg summary{cursor:pointer;padding:6px 0;font-size:14px}
 .mini{padding:2px 10px;font-size:12px}.mood{font-size:30px}.sub{color:var(--sub);font-size:12px}
 svg text{fill:var(--sub);font-size:10px}
 </style></head><body>
@@ -61,7 +62,7 @@ function stats(){const T=getT(Y),m=Array(12).fill(0),sv={},ong=[],pr={};
   if(c.status=='signed'){if(c.date&&+c.date.slice(0,4)==Y){m[+c.date.slice(5,7)-1]+=t;c.lines.forEach(l=>{a(l.svc,'signed',+l.amt||0);a(l.svc,'sn',1)})}}
   else if(!c.exp||+c.exp.slice(0,4)==Y){
    if(c.status=='ongoing'){ong.push(c);c.lines.forEach(l=>a(l.svc,'ongoing',+l.amt||0))}
-   else{const p=+c.prob||0,g=pr[p]=pr[p]||{n:0,amt:0,w:0};g.n++;g.amt+=t;g.w+=t*p/100;c.lines.forEach(l=>a(l.svc,'w',(+l.amt||0)*p/100))}}});
+   else{const p=+c.prob||0,g=pr[p]=pr[p]||{n:0,amt:0,w:0,cs:[]};g.cs.push(c);g.n++;g.amt+=t;g.w+=t*p/100;c.lines.forEach(l=>a(l.svc,'w',(+l.amt||0)*p/100))}}});
  return{T,m,sv,ong,pr}}
 function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=22,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
@@ -71,7 +72,7 @@ function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=22,n=12,mx=Math.
  lines.forEach((l,j)=>{s+=`<polyline fill="none" stroke="${cols[j]}" stroke-width="3" stroke-linejoin="round" points="${l.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`+l.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${cols[j]}"/>`).join('')});
  return s+'</svg>'}
 function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.reduce((a,b)=>a+b,0),cum=[],cumT=[];m.reduce((a,v,i)=>(cum[i]=a+v),0);T.reduce((a,v,i)=>(cumT[i]=a+v),0);
- const cmT=CM?cumT[CM-1]:0,cmA=CM?cum[CM-1]:0,gap=cmA-cmT,ongT=ong.reduce((a,c)=>a+tot(c),0),wT=Object.values(pr).reduce((a,g)=>a+g.w,0),fc=sg_+ongT+wT;
+ const cmT=CM?cumT[CM-1]:0,cmA=CM?cum[CM-1]:0,gap=cmA-cmT,ongT=ong.reduce((a,c)=>a+tot(c),0),wT=Object.values(pr).reduce((a,g)=>a+g.w,0),pT=Object.values(pr).reduce((a,g)=>a+g.amt,0),f1=sg_+ongT,f2=f1+pT;
  const cmSel=`<select onchange="CM=+this.value;render()">${Array.from({length:13},(_,i)=>`<option value="${i}" ${i==CM?'selected':''}>${i?i+' 月底':'未開始'}</option>`).join('')}</select>`;
  let h=`<div class="card"><div class="row"><span class="mood">${gap>=0?'😸':'🙀'}</span><div>統計到 ${cmSel}<br><b class="${cls(gap)}">${gap>=0?'超前':'落後'} ${fmt(Math.abs(gap))} 元</b></div></div>
  <div class="grid"><div class="kpi"><small>累計目標</small><b>${fmt(cmT)}</b></div><div class="kpi kp2"><div><small>累計實際（已簽約）</small><b>${fmt(cmA)}</b><small class="${cls(cmA-cmT)}">${sg(cmA-cmT)}</small></div><div class="pc"><small>累計達成率</small><b>${pct(cmA,cmT)}</b></div></div><div class="kpi"><small>全年目標</small><b>${fmt(cT)}</b></div><div class="kpi kp2"><div><small>全年已簽約 / 差距</small><b>${fmt(sg_)}</b><small class="${cls(sg_-cT)}">${sg(sg_-cT)}</small></div><div class="pc"><small>年達成率</small><b>${pct(sg_,cT)}</b></div></div></div></div>
@@ -83,7 +84,10 @@ function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.r
  h+=`</table></div><p class="sub">金額只計入「有列個別價格」的案件；沒列個別價格的案件只算件數，總金額仍計入上方各項統計。</p></div><div class="card"><h2>⏳ 進行中（已確定，跑合約／行政流程）</h2><p class="sub">${ong.length} 件，共 ${fmt(ongT)} 元</p>${list(ong)}</div>
  <div class="card"><h2>🎯 機率案件</h2><div class="wrap"><table><tr><th>機率</th><th>件數</th><th>金額</th><th>加權金額</th></tr>`;
  Object.keys(pr).sort((a,b)=>b-a).forEach(p=>h+=`<tr><td>${p}%</td><td>${pr[p].n}</td><td>${fmt(pr[p].amt)}</td><td>${fmt(pr[p].w)}</td></tr>`);
- h+=`</table></div></div><div class="card"><h2>🔮 預估</h2><p>已簽約 ${fmt(sg_)} + 進行中 ${fmt(ongT)} + 機率加權 ${fmt(wT)} = <b>${fmt(fc)}</b><br>對全年目標 <b class="${cls(fc-cT)}">${sg(fc-cT)}</b> 元</p></div>`;return h}
+ h+=`</table></div>`;if(!Object.keys(pr).length)h+='<p class="sub">目前沒有機率案件 🐾</p>';
+ Object.keys(pr).sort((a,b)=>b-a).forEach(p=>{const g=pr[p];h+=`<details open class="pg"><summary><b>${p}%</b>　${g.n} 件｜金額 ${fmt(g.amt)}｜加權 ${fmt(g.w)}</summary>${list(g.cs)}</details>`});
+ const fk=(t,v)=>`<div class="kpi kp2"><div><small>${t}</small><b>${fmt(v)}</b><small class="${cls(v-cT)}">${sg(v-cT)}</small></div><div class="pc"><small>達成率</small><b>${pct(v,cT)}</b></div></div>`;
+ h+=`</div><div class="card"><h2>🔮 預估（對全年目標）</h2><div class="grid">${fk('已簽約 + 進行中',f1)}${fk('已簽約 + 進行中 + 機率案件',f2)}</div><p class="sub">已簽約 ${fmt(sg_)} + 進行中 ${fmt(ongT)}${pT?` + 機率案件 ${fmt(pT)}（未加權）`:''}</p></div>`;return h}
 function list(a){return a.length?a.map(c=>`<div class="cs"><div class="top"><b>${E(c.name)}</b><span class="amt">${fmt(tot(c))}</span></div><div class="meta"><span class="tag">${ST[c.status]}${c.status=='prob'?' '+(c.prob||0)+'%':''}</span>${c.noCount?' <span class="tag">不計業績</span>':''} ${c.status=='signed'?'簽約 '+E(c.date):(c.exp?'預計 '+E(c.exp):'')}</div><div>${c.lines.map(l=>`<span class="chip">${E(l.svc)}${l.amt>0?' '+fmt(l.amt):''}</span>`).join('')}</div><div class="sub">${own(c).length?'👤 '+E(own(c).join('、')):''}${c.contract?' ・ 📄 '+E(c.contract):''}</div><div class="acts"><button class="btn mini" onclick="edit('${c.id}')">編輯</button> <button class="btn mini" onclick="del('${c.id}')">刪除</button></div></div>`).join(''):'<p class="sub">還沒有資料 🐾</p>'}
 let q='';
 const fc=()=>S.cases.filter(c=>(filt=='all'||c.status==filt)&&(!q||(c.name+(c.contract||'')+own(c).join('')).toLowerCase().includes(q.toLowerCase()))).sort((x,y)=>(y.date||y.exp||'').localeCompare(x.date||x.exp||''));
@@ -153,11 +157,11 @@ if(firebaseConfig.apiKey.startsWith("YOUR")){$('#sync').textContent='僅存本�
 else{
  const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);let uid=null;
  $('#auth').onclick=()=>uid?signOut(auth):signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>alert('登入失敗：'+e.message));
- window.cloudSave=async d=>{if(!uid)return;try{await setDoc(doc(db,'users',uid),{json:JSON.stringify(d),t:Date.now()});$('#sync').textContent='☁️ 已同步'}catch(e){$('#sync').textContent='⚠️ 同步失敗';console.error(e)}};
+ window.cloudSave=async d=>{if(!uid)return;try{await setDoc(doc(db,'users',uid),{json:JSON.stringify(d),t:Date.now()});$('#sync').textContent='☁️ 已同步'}catch(e){$('#sync').textContent='⚠️ 同步失敗：'+(e.code||e.message);console.error(e)}};
  onAuthStateChanged(auth,async u=>{uid=u?u.uid:null;$('#auth').textContent=u?'登出':'登入 Google';
   if(!u){$('#sync').textContent='未登入（僅存本機）';return}
   try{const s=await getDoc(doc(db,'users',uid));if(s.exists())loadRemote(JSON.parse(s.data().json));else await window.cloudSave(getS());$('#sync').textContent='☁️ 已同步'}
-  catch(e){$('#sync').textContent='⚠️ 同步失敗';console.error(e)}});
+  catch(e){$('#sync').textContent='⚠️ 同步失敗：'+(e.code||e.message);console.error(e)}});
 }
 </script>
 </body></html>
