@@ -47,6 +47,7 @@ const own=c=>c.owners||(c.owner?[c.owner]:[]);
 const getT=y=>S.targets[y]||(S.targets[y]=Array(12).fill(0));
 const cls=n=>n>=0?'pos':'neg',sg=n=>(n>=0?'+':'−')+fmt(Math.abs(n));
 function save(){try{localStorage.setItem('sr',JSON.stringify(S))}catch(e){}clearTimeout(tmr);tmr=setTimeout(()=>{window.cloudSave&&window.cloudSave(S)},800)}
+function dedupe(){const seen=new Set(),out=[];S.cases.forEach(c=>{const k=JSON.stringify([c.name,c.contract||'',c.status,c.date||'',c.exp||'',c.prob,!!c.noCount,[...own(c)].sort(),c.lines.map(l=>[l.svc,Math.round(l.amt)]).sort()]);if(!seen.has(k)){seen.add(k);out.push(c)}});const n=S.cases.length-out.length;if(!n)return alert('沒有發現完全重複的案件 🐱');if(confirm(`找到 ${n} 件完全重複的案件，要刪除多的、各保留一件嗎？`)){S.cases=out;save();render()}}
 function fixData(){const key=n=>n.trim().toLowerCase(),canon={};S.services.forEach(n=>{if(!SEP.test(n))canon[key(n)]=canon[key(n)]||n.trim()});
  const nm=n=>{n=n.trim();return canon[key(n)]||(canon[key(n)]=n)};
  S.cases.forEach(c=>{const m={};c.lines.forEach(l=>{const ps=String(l.svc).split(SEP).map(z=>z.trim()).filter(Boolean);ps.forEach(p=>{const k=nm(p);m[k]=(m[k]||0)+(+l.amt||0)/ps.length})});c.lines=Object.entries(m).map(([svc,amt])=>({svc,amt}))});
@@ -91,7 +92,7 @@ function cases(){return `<div class="card"><div class="row"><button class="btn p
 function settings(){const T=getT(Y);
  return `<div class="card"><h2>${Y} 年每月目標（元）</h2><div class="row"><input id="allT" type="number" placeholder="全年同額"><button class="btn" onclick="fillT()">套用</button></div><div class="grid">${T.map((v,i)=>`<div><label>${i+1}月</label><input type="number" value="${v}" onchange="getT(Y)[${i}]=+this.value||0;save()"></div>`).join('')}</div></div>
  ${['services','owners'].map(k=>`<div class="card"><h2>${k=='services'?'服務項目':'負責人名單'}</h2>${S[k].map((n,i)=>`<span class="tag">${E(n)} <a href="#" onclick="rm('${k}',${i});return false">✕</a></span> `).join('')}<div class="row" style="margin-top:8px"><input id="n_${k}" placeholder="新增…"><button class="btn" onclick="addI('${k}')">加</button></div></div>`).join('')}
- <div class="card"><h2>Excel</h2><div class="row"><button class="btn" onclick="tpl()">下載範本</button><button class="btn" onclick="exp()">匯出全部</button><button class="btn pri" onclick="$('#fi').click()">匯入</button></div><input id="fi" type="file" accept=".xlsx,.xls,.csv" hidden onchange="imp(this.files[0]);this.value=''"><p class="sub">匯入一律新增，遇到重複合約編號會提醒，請自行檢查刪除。</p></div>`}
+ <div class="card"><h2>Excel</h2><div class="row"><button class="btn" onclick="tpl()">下載範本</button><button class="btn" onclick="exp()">匯出全部</button><button class="btn pri" onclick="$('#fi').click()">匯入</button></div><div class="row"><button class="btn" onclick="dedupe()">🧹 清除重複的案件</button></div><input id="fi" type="file" accept=".xlsx,.xls,.csv" hidden onchange="imp(this.files[0]);this.value=''"><p class="sub">匯入時，合約編號相同的案件會直接更新（覆蓋）；沒有合約編號的，以專案名稱＋狀態判斷是否同一筆。</p></div>`}
 function fillT(){const v=+$('#allT').value||0;S.targets[Y]=Array(12).fill(v);save();render()}
 function addI(k){const v=$('#n_'+k).value.trim();if(v&&!S[k].includes(v)){S[k].push(v);save();render()}}
 function rm(k,i){S[k].splice(i,1);save();render()}
@@ -125,7 +126,9 @@ function imp(f){if(!f)return;const r=new FileReader();r.onload=e=>{try{const wb=
   const date=nd(x['簽約日']);if(st=='signed'&&!date)return err.push(`第${n}列：已簽約需要正確的簽約日`);
   const k=[name,con,st].join('|');const c=map[k]=map[k]||{id:uid(),name,owners:String(x['負責人']).split(/[,、;，；\/／\s]+/).map(t=>t.trim()).filter(Boolean),contract:con,status:st,date:st=='signed'?date:'',exp:st!='signed'?nm(x['預計簽約月']):'',prob:st=='prob'?+x['機率(%)']||0:100,noCount:String(x['計入業績(是/否)']).trim()=='否',lines:[]};
   svs.forEach((v,j)=>{c.lines.push({svc:v,amt:am[j]});if(!S.services.includes(v))S.services.push(v)});c.owners.forEach(o=>{if(!S.owners.includes(o))S.owners.push(o)});if(con&&S.cases.some(z=>z.contract==con))dup.add(con)});
- const a=Object.values(map);S.cases.push(...a);save();render();alert(`匯入 ${a.length} 件案件。`+(dup.size?`\n⚠️ 合約編號已存在：${[...dup].join('、')}（已新增，請自行檢查）`:'')+(avg.length?`\n⚠️ 第 ${avg.join('、')} 列有多個服務但只填一個金額，已平均分攤，請檢查`:'')+(err.length?`\n\n未匯入：\n`+err.slice(0,10).join('\n'):''))}catch(x){alert('讀取失敗：'+x.message)}};r.readAsArrayBuffer(f)}
+ const a=Object.values(map),old=S.cases.slice();let nAdd=0,nUp=0;
+ a.forEach(c=>{const i=old.findIndex(z=>c.contract?z.contract==c.contract:(!z.contract&&z.name==c.name&&z.status==c.status));if(i<0){S.cases.push(c);nAdd++}else{c.id=old[i].id;S.cases[S.cases.indexOf(old[i])]=c;nUp++}});
+ save();render();alert(`匯入完成：新增 ${nAdd} 件，更新（覆蓋）${nUp} 件。`+(avg.length?`\n⚠️ 第 ${avg.join('、')} 列有多個服務但只填一個金額，已平均分攤，請檢查`:'')+(err.length?`\n\n未匯入：\n`+err.slice(0,10).join('\n'):''))}catch(x){alert('讀取失敗：'+x.message)}};r.readAsArrayBuffer(f)}
 function render(){const ys=new Set([Y,new Date().getFullYear(),new Date().getFullYear()+1,...Object.keys(S.targets).map(Number),...S.cases.map(c=>+(c.date||c.exp||'0').slice(0,4)).filter(Boolean)]);
  $('#yr').innerHTML=[...ys].sort().map(y=>`<option value="${y}" ${y==Y?'selected':''}>${y} 年</option>`).join('');
  $('#nav').innerHTML=[['report','📊 報表'],['cases','📋 案件'],['settings','⚙️ 設定']].map(([k,v])=>`<button class="${k==tab?'on':''}" onclick="tab='${k}';render()">${v}</button>`).join('');
