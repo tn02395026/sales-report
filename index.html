@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>貓貓業績報表</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <style>
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light;--bg:#fff7ee;--card:#fff;--tx:#4a3b32;--sub:#9a8678;--pk:#ff9eb5;--or:#ffb26b;--gr:#6cc9a0;--rd:#f0757f;--bd:#f3dfcf}
 @media(prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark;--bg:#2a2320;--card:#362d29;--tx:#f5e9df;--sub:#bba999;--bd:#4d413b}}
@@ -124,7 +124,10 @@ function buildPptx(P){P.layout='LAYOUT_WIDE';const F='Microsoft JhengHei';
   const hd=sl.head.map(t=>({text:t,options:{bold:true,color:'FFFFFF',fill:{color:hc},align:'center',fontFace:F}})),bd=sl.rows.map((r,i)=>r.map(t=>({text:String(t),options:{fontFace:F,fill:{color:i%2?'FFFFFF':'F7F3EE'}}}))),
   ft=sl.foot.map(f=>(sl.kind=='deal'?['','','',f[0],f[1]]:['',f[0],f[1],'']).map(t=>({text:t,options:{bold:true,fontFace:F,align:t?'right':'left'}})));
   s.addTable([hd,...bd,...ft],{x:.5,y:.95,w:12.3,colW:sl.cw,fontSize:10,border:{type:'solid',pt:.5,color:'DDDDDD'},valign:'middle',autoPage:true,autoPageRepeatHeader:true,autoPageSlideStartY:.5})})}
-function dlPptx(){if(!window.PptxGenJS)return alert('簡報元件載入失敗，請檢查網路後重試');const P=new PptxGenJS();buildPptx(P);P.writeFile({fileName:`業績簡報_${Y}-${String(PM).padStart(2,'0')}.pptx`})}
+const loadJs=u=>new Promise((ok,no)=>{const e=document.createElement('script');e.src=u;e.onload=ok;e.onerror=no;document.head.appendChild(e)});
+async function dlPptx(){if(!window.PptxGenJS){for(const u of ['https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js','https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js','https://unpkg.com/pptxgenjs@3.12.0/dist/pptxgen.bundle.js']){try{await loadJs(u);if(window.PptxGenJS)break}catch(e){}}}
+ if(!window.PptxGenJS)return alert('簡報元件載入失敗。可能是網路問題，或瀏覽器的廣告攔截／擴充功能擋住了外部檔案，請關閉後再試一次。');
+ try{const P=new PptxGenJS();buildPptx(P);await P.writeFile({fileName:`業績簡報_${Y}-${String(PM).padStart(2,'0')}.pptx`})}catch(e){alert('產生簡報失敗：'+(e.message||e))}}
 /*DECK_END*/
 function settings(){const T=getT(Y);
  return `<div class="card"><h2>${Y} 年每月目標（元）</h2><div class="row"><input id="allT" type="number" placeholder="全年同額"><button class="btn" onclick="fillT()">套用</button></div><div class="grid">${T.map((v,i)=>`<div><label>${i+1}月</label><input type="number" value="${v}" onchange="getT(Y)[${i}]=+this.value||0;save()"></div>`).join('')}</div></div>
