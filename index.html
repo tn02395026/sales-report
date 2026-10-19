@@ -46,7 +46,7 @@ const $=s=>document.querySelector(s),ST={signed:'已簽約',ongoing:'進行中',
 let S={cases:[],targets:{},services:['LEED','WELL','EEWH','BERS','IB'],owners:[]},Y=new Date().getFullYear(),tab='report',ref=null,CM=new Date().getMonth()+1,filt='all',tmr;
 const fmt=n=>Math.round(n).toLocaleString('en-US'),wan=n=>(n/1e4).toFixed(0)+'萬',E=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const tot=c=>c.lines.reduce((a,l)=>a+(+l.amt||0),0)+(+c.extra||0),uid=()=>Math.random().toString(36).slice(2,9);
-const nn=t=>String(t||'').toLowerCase().replace(/[\s()（）\-_.,，、:：·]/g,''),cd=c=>[...new Set(String(c.contract||'').match(/\d{6}(?:-\d{2})?/g)||[])],RK={prob:0,ongoing:1,signed:2};
+const nn=t=>String(t||'').toLowerCase().replace(/[\s()（）\-_.,，、:：·]/g,''),cd=c=>[...new Set(String(c.contract||'').match(/\d{6}(?:-\d{2})?(?:-\d+)?/g)||[])],RK={prob:0,ongoing:1,signed:2};
 const same=(a,b,prog)=>{const x=cd(a),y=cd(b);if(x.length&&y.length)return x.some(t=>y.includes(t));if(nn(a.name)!=nn(b.name))return false;if(a.status!=b.status)return !!prog&&RK[b.status]<=RK[a.status];return a.status=='signed'?a.date==b.date:(a.exp||'')==(b.exp||'')};
 const pct=(a,t)=>t?(a/t*100).toFixed(1)+'%':'—';
 const own=c=>c.owners||(c.owner?[c.owner]:[]);
@@ -57,8 +57,8 @@ function dedupe(){const used=new Set(),groups=[];
  S.cases.forEach((c,i)=>{if(used.has(i))return;const g=[i];used.add(i);for(let j=i+1;j<S.cases.length;j++)if(!used.has(j)&&g.some(k=>same(S.cases[k],S.cases[j])))(g.push(j),used.add(j));if(g.length>1)groups.push(g)});
  if(!groups.length)return alert('沒有發現重複的案件 🐱');
  const rich=c=>own(c).length+(c.contract?1:0)+(c.svcText?1:0)+(c.action?1:0)+(c.lines.length?1:0),drop=new Set(),nm=[];
- groups.forEach(g=>{const best=g.reduce((x,y)=>rich(S.cases[y])>=rich(S.cases[x])?y:x);g.forEach(k=>{if(k!=best)drop.add(k)});nm.push(S.cases[best].name)});
- if(confirm(`找到 ${groups.length} 組重複，共 ${drop.size} 件多出來的。\n每組保留資料最完整的一筆（同分留較新的），其餘刪除。\n\n例如：${nm.slice(0,5).join('、')}\n要執行嗎？`)){S.cases=S.cases.filter((_,i)=>!drop.has(i));save();render()}}
+ groups.forEach(g=>{const best=g.reduce((x,y)=>rich(S.cases[y])>=rich(S.cases[x])?y:x);g.forEach(k=>{if(k!=best)drop.add(k)});nm.push(`${S.cases[best].name}（${g.map(k=>fmt(tot(S.cases[k]))).join(' / ')}）`)});
+ if(confirm(`找到 ${groups.length} 組重複，共 ${drop.size} 件多出來的。\n每組保留資料最完整的一筆（同分留較新的），其餘刪除。\n\n例如（括號內是各筆金額）：\n${nm.slice(0,6).join('\n')}\n要執行嗎？`)){S.cases=S.cases.filter((_,i)=>!drop.has(i));save();render()}}
 function fixData(){const key=n=>n.trim().toLowerCase(),canon={};S.services.forEach(n=>{if(!SEP.test(n))canon[key(n)]=canon[key(n)]||n.trim()});
  const nm=n=>{n=n.trim();return canon[key(n)]||(canon[key(n)]=n)};
  S.cases.forEach(c=>{const m={};c.lines.forEach(l=>{const ps=String(l.svc).split(SEP).map(z=>z.trim()).filter(Boolean);ps.forEach(p=>{const k=nm(p);m[k]=(m[k]||0)+(ps.length>1?0:(+l.amt||0))});if(ps.length>1)c.extra=(c.extra||0)+(+l.amt||0)});c.lines=Object.entries(m).map(([svc,amt])=>({svc,amt}))});
