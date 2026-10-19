@@ -66,19 +66,20 @@ function stats(){const T=getT(Y),m=Array(12).fill(0),sv={},ong=[],pr={};
    if(c.status=='ongoing'){ong.push(c);c.lines.forEach(l=>a(l.svc,'ongoing',+l.amt||0))}
    else{const p=+c.prob||0,g=pr[p]=pr[p]||{n:0,amt:0,w:0,cs:[]};g.cs.push(c);g.n++;g.amt+=t;g.w+=t*p/100;c.lines.forEach(l=>a(l.svc,'w',(+l.amt||0)*p/100))}}});
  return{T,m,sv,ong,pr}}
-function chart(bars,lines,cols){const W=640,H=230,L=44,B=24,top=22,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
+function chart(bars,lines,cols){const W=640,H=290,L=76,B=24,top=78,n=12,mx=Math.max(1,...bars,...lines.flat()),mn=Math.min(0,...lines.flat()),y=v=>top+(H-B-top)*(1-(v-mn)/(mx-mn)),x=i=>L+(W-L-8)*(i+.5)/n;
  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img">`;
- for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4;s+=`<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--bd)"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${Math.round(v/1e4)}萬</text>`}
+ for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4;s+=`<line x1="${L}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--bd)"/><text x="${L-4}" y="${y(v)+3}" text-anchor="end">${fmt(v)}</text>`}
  for(let i=0;i<n;i++)s+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${i+1}月</text>`;
- bars.forEach((v,i)=>s+=`<rect x="${x(i)-10}" y="${y(Math.max(v,0))}" width="20" height="${Math.abs(y(0)-y(v))}" rx="6" fill="var(--pk)"/>`+(v?`<text x="${x(i)}" y="${y(Math.max(v,0))-4}" text-anchor="middle" style="fill:var(--tx);font-size:10px;font-weight:600">${Math.round(v/1e4)}</text>`:''));
+ bars.forEach((v,i)=>s+=`<rect x="${x(i)-10}" y="${y(Math.max(v,0))}" width="20" height="${Math.abs(y(0)-y(v))}" rx="6" fill="var(--pk)"/>`);
  lines.forEach((l,j)=>{s+=`<polyline fill="none" stroke="${cols[j]}" stroke-width="3" stroke-linejoin="round" points="${l.map((v,i)=>x(i)+','+y(v)).join(' ')}"/>`+l.map((v,i)=>`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${cols[j]}"/>`).join('')});
+ bars.forEach((v,i)=>{if(v)s+=`<text transform="translate(${x(i)+4},${y(Math.max(v,0))-5}) rotate(-90)" text-anchor="start" style="fill:var(--tx);font-size:10px;font-weight:600;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round">${fmt(v)}</text>`});
  return s+'</svg>'}
 function report(){const{T,m,sv,ong,pr}=stats(),cT=T.reduce((a,b)=>a+b,0),sg_=m.reduce((a,b)=>a+b,0),cum=[],cumT=[];m.reduce((a,v,i)=>(cum[i]=a+v),0);T.reduce((a,v,i)=>(cumT[i]=a+v),0);
  const cmT=CM?cumT[CM-1]:0,cmA=CM?cum[CM-1]:0,gap=cmA-cmT,ongT=ong.reduce((a,c)=>a+tot(c),0),wT=Object.values(pr).reduce((a,g)=>a+g.w,0),pT=Object.values(pr).reduce((a,g)=>a+g.amt,0),f1=sg_+ongT,f2=f1+pT;
  const cmSel=`<select onchange="CM=+this.value;render()">${Array.from({length:13},(_,i)=>`<option value="${i}" ${i==CM?'selected':''}>${i?i+' 月底':'未開始'}</option>`).join('')}</select>`;
  let h=`<div class="card"><div class="row"><span class="mood">${gap>=0?'😸':'🙀'}</span><div>統計到 ${cmSel}<br><b class="${cls(gap)}">${gap>=0?'超前':'落後'} ${fmt(Math.abs(gap))} 元</b></div></div>
  <div class="grid"><div class="kpi"><small>累計目標</small><b>${fmt(cmT)}</b></div><div class="kpi kp2"><div><small>累計實際（已簽約）</small><b>${fmt(cmA)}</b><small class="${cls(cmA-cmT)}">${sg(cmA-cmT)}</small></div><div class="pc"><small>累計達成率</small><b>${pct(cmA,cmT)}</b></div></div><div class="kpi"><small>全年目標</small><b>${fmt(cT)}</b></div><div class="kpi kp2"><div><small>全年已簽約 / 差距</small><b>${fmt(sg_)}</b><small class="${cls(sg_-cT)}">${sg(sg_-cT)}</small></div><div class="pc"><small>年達成率</small><b>${pct(sg_,cT)}</b></div></div></div></div>
- <div class="card"><h2>🐾 每月實際（柱）vs 目標（線）單位：萬</h2>${chart(m,[T],['#ff8a3d'])}</div>
+ <div class="card"><h2>🐾 每月實際（柱）vs 目標（線）單位：元</h2>${chart(m,[T],['#ff8a3d'])}</div>
  <div class="card"><h2>每月明細</h2><div class="wrap"><table><tr><th>月</th><th>目標</th><th>實際</th><th>月差距</th><th>累計目標</th><th>累計實際</th><th>累計差距</th></tr>`;
  m.forEach((v,i)=>h+=`<tr><td>${i+1}月</td><td>${fmt(T[i])}</td><td>${fmt(v)}</td><td class="${cls(v-T[i])}">${sg(v-T[i])}</td><td>${fmt(cumT[i])}</td><td>${fmt(cum[i])}</td><td class="${cls(cum[i]-cumT[i])}">${sg(cum[i]-cumT[i])}</td></tr>`);
  h+=`</table></div></div><div class="card"><h2>各服務項目（元）</h2><div class="wrap"><table><tr><th>服務</th><th>已簽約件數</th><th>已簽約金額</th><th>進行中金額</th><th>機率加權</th></tr>`;
